@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -61,15 +62,31 @@ func webhookHandler(c echo.Context) error {
 	// This makes sure that the POST request is actually coming from Stripe.
 	stripeWebhookSecret := os.Getenv("STRIPE_WEBHOOK_KEY")
 	signatureHeader := req.Header.Get("Stripe-Signature")
-	fmt.Println(req.Header)
-	_, err = webhook.ConstructEvent(body, signatureHeader, stripeWebhookSecret)
+
+	event, err := webhook.ConstructEvent(body, signatureHeader, stripeWebhookSecret)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error verifying webhook signature: %v\n", err)
-		res.WriteHeader(http.StatusBadRequest) // Return a 400 error on a bad signature
+		res.WriteHeader(http.StatusBadRequest)
 		return err
 	}
 
-	fmt.Fprintf(os.Stdout, "Got body: %s\n", body)
+	switch event.Type {
+	case "checkout.session.completed":
+		break
+	case "customer.created":
+		var session stripe.CheckoutSession
+		err := json.Unmarshal(event.Data.Raw, &session)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error parsing webhook JSON: %v\\n", err)
+			res.WriteHeader(http.StatusBadRequest)
+			return err
+		}
+
+		fmt.Println("Checkout Session: ", session.ID)
+		break
+	default:
+		break
+	}
 
 	res.WriteHeader(http.StatusOK)
 	return nil
