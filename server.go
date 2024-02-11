@@ -10,8 +10,8 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	"github.com/stripe/stripe-go"
-	"github.com/stripe/stripe-go/webhook"
+	"github.com/stripe/stripe-go/v76"
+	"github.com/stripe/stripe-go/v76/webhook"
 )
 
 func main() {
@@ -32,7 +32,7 @@ func main() {
 	e.Use(middleware.Recover())
 
 	// Routes
-	e.GET("/", hello)
+	e.GET("/ping", ping)
 	e.POST("/webhook", webhookHandler)
 
 	// Start server
@@ -40,8 +40,8 @@ func main() {
 }
 
 // Handlers
-func hello(c echo.Context) error {
-	return c.String(http.StatusOK, "Hello, World!")
+func ping(c echo.Context) error {
+	return c.String(http.StatusOK, "Pong!")
 }
 
 func webhookHandler(c echo.Context) error {
@@ -72,22 +72,34 @@ func webhookHandler(c echo.Context) error {
 
 	switch event.Type {
 	case "checkout.session.completed":
-		break
-	case "customer.created":
 		var session stripe.CheckoutSession
 		err := json.Unmarshal(event.Data.Raw, &session)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error parsing webhook JSON: %v\\n", err)
+			fmt.Fprintf(os.Stderr, "Error parsing webhook JSON: %v\n", err)
 			res.WriteHeader(http.StatusBadRequest)
 			return err
 		}
 
-		fmt.Println("Checkout Session: ", session.ID)
-		break
-	default:
-		break
+		orderPaid := session.PaymentStatus == stripe.CheckoutSessionPaymentStatusPaid
+		if orderPaid {
+			// create user account
+			createCustomerAccount(session.CustomerDetails.Name, session.CustomerDetails.Email)
+
+			// send email
+			sendCustomerEmail(session.CustomerDetails.Email)
+		}
 	}
 
 	res.WriteHeader(http.StatusOK)
 	return nil
+}
+
+func createCustomerAccount(name, email string) {
+	// save customer data to database
+	fmt.Println("Customer account created!")
+}
+
+func sendCustomerEmail(email string) {
+	// send email to customer with his temporary credentials
+	fmt.Println("Email sent to customer!")
 }
