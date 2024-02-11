@@ -10,6 +10,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/stripe/stripe-go"
+	"github.com/stripe/stripe-go/webhook"
 )
 
 func main() {
@@ -31,7 +32,7 @@ func main() {
 
 	// Routes
 	e.GET("/", hello)
-	e.POST("/webhook", webhook)
+	e.POST("/webhook", webhookHandler)
 
 	// Start server
 	e.Logger.Fatal(e.Start(":4444"))
@@ -42,7 +43,7 @@ func hello(c echo.Context) error {
 	return c.String(http.StatusOK, "Hello, World!")
 }
 
-func webhook(c echo.Context) error {
+func webhookHandler(c echo.Context) error {
 	req := c.Request()
 	res := c.Response()
 
@@ -56,8 +57,20 @@ func webhook(c echo.Context) error {
 		return err
 	}
 
+	// Checks webhook signature.
+	// This makes sure that the POST request is actually coming from Stripe.
+	stripeWebhookSecret := os.Getenv("STRIPE_WEBHOOK_KEY")
+	signatureHeader := req.Header.Get("Stripe-Signature")
+	fmt.Println(req.Header)
+	_, err = webhook.ConstructEvent(body, signatureHeader, stripeWebhookSecret)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error verifying webhook signature: %v\n", err)
+		res.WriteHeader(http.StatusBadRequest) // Return a 400 error on a bad signature
+		return err
+	}
+
 	fmt.Fprintf(os.Stdout, "Got body: %s\n", body)
 
 	res.WriteHeader(http.StatusOK)
-	return c.String(http.StatusOK, string(body[:]))
+	return nil
 }
