@@ -65,3 +65,26 @@ The Stripe API keys (public and private) can be found in [here](https://dashboar
 
 The webhook key can be found, in test mode, when you run the `stripe listen` command.
 For the production mode, you will need to get it at [Developers - Webhook](https://dashboard.stripe.com/test/webhooks).
+
+### Webhooks and subscriptions
+
+When needing to handle subscriptions, [this is the resource](https://stripe.com/docs/billing/subscriptions/webhooks) to follow.
+Here are some insights:
+
+> [Successful payments](https://stripe.com/docs/billing/subscriptions/overview#successful-payments):
+> When your customer successfully pays the invoice, the subscription updates to `active` and the invoice to `paid`. At this point, __you can provision access to your product__.
+
+> [Payment window](https://stripe.com/docs/billing/subscriptions/overview#payment-window):
+> Customers have about `23 hours` to make a successful payment. The subscription remains in status `incomplete` and the invoice is `open` during this time. If your customer pays the invoice, the subscription updates to `active` and the invoice to `paid`. If they don’t make a payment, the subscription updates to `incomplete_expired` and the invoice becomes `void`.
+> This window exists because your customer usually makes the first payment for a subscription while on-session. __If the customer returns to your application after 23 hours, create a new subscription for them.__
+
+> [Failed payments](https://stripe.com/docs/billing/subscriptions/overview#failed-payments):
+> The subscription’s status remains `active` as long as automatic payments succeed. If automatic payment fails, the subscription updates to `past_due` and Stripe attempts to recover payment based on your [retry rules](https://dashboard.stripe.com/settings/billing/automatic). If payment recovery fails, you can set the subscription status to `canceled`, `unpaid`, or leave it `past_due`.
+
+## Questions
+
+-> What happens when the webhook tries to contact the endpoint but is unsuccessful?
+For example when something like "I wanna start my subscription now" and then the customer
+pays for it, the stripe webhook will try to contact our application.
+If the application is not online (or the webhook endpoint is not working), how will the customer
+get its data created correctly and sent to him via email?
