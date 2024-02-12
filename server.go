@@ -114,10 +114,24 @@ func webhookHandler(c echo.Context) error {
 			updateUserAccount(*user, subscriptionStatus, expireDateTimestamp)
 		}
 
+	case "customer.subscription.deleted":
+		var customerSubscription stripe.Subscription
+		err := json.Unmarshal(event.Data.Raw, &customerSubscription)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error parsing webhook JSON: %v\n", err)
+			res.WriteHeader(http.StatusBadRequest)
+			return err
+		}
+
+		// status := customerSubscription.Status
+		// userEmail := customerSubscription.Customer.Email
+
+		// TODO: update status of user with email `userEmail` to `status`
 	}
 
 	res.WriteHeader(http.StatusOK)
 	return nil
+
 }
 
 func updateUserAccount(user User, subscriptionStatus stripe.SubscriptionStatus, expireDateTimestamp int64) {
