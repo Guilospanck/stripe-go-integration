@@ -14,9 +14,19 @@ Then, run:
 stripe login
 ```
 
-This will redirect you to the Stripe dashboard in order to allow the access of the CLI to your application.
+This will redirect you to the Stripe Dashboard in order to allow the access of the CLI to your application.
 
-## How to run (dev/test mode)
+## Enabling test mode
+
+You can enable test mode on the Stripe Dashboard:
+
+![alt text](img/testmode.png)
+
+This is good if you don't want to spend real money while testing your application.
+
+![alt text](img/realmoneynotcharged.png)
+
+## How to run (test mode)
 
 Follow these points:
 
@@ -45,26 +55,31 @@ stripe trigger [event_type]
 
 3.1) You can also trigger an event by going to your checkout in a human way, i.e., clicking on the checkout link of your checkout page and adding some test data. Testing data example:
 
-```md
 Fill out your payment form with test data
+
 - Enter `4242 4242 4242 4242` as the card number
 - Enter any future date for card expiry
 - Enter any 3-digit number for CVV
 - Enter any billing postal code (`90210`)
-```
 
 More testing data can be found [here](https://stripe.com/docs/testing).
+
+## Debugging (test mode)
+
+You don't have to set up breakpoints in your application or logs in order to, for example, check the incoming events and its structure.
+
+When you use the `stripe listen` command, it will print in your terminal the events that it is `post`ing to your webhook. If you click on the name of them, you will be redirected to the `Events` logs in the Stripe dashboard, where can see everything that was received and sent.
 
 ## Misc
 
 ### API Keys
 
-The Stripe API keys (public and private) can be found in [here](https://dashboard.stripe.com/test/apikeys), for the test mode, or in [here](https://dashboard.stripe.com/apikeys) for the production mode.
+The Stripe API keys (public and private) can be found in [here](https://dashboard.stripe.com/test/apikeys), for the test mode, or in [here](https://dashboard.stripe.com/apikeys) for the live mode.
 
 ### Webhook key
 
 The webhook key can be found, in test mode, when you run the `stripe listen` command.
-For the production mode, you will need to get it at [Developers - Webhook](https://dashboard.stripe.com/test/webhooks).
+For the live mode, you will need to get it at [Developers - Webhook](https://dashboard.stripe.com/test/webhooks).
 
 ### Webhooks and subscriptions
 
@@ -80,6 +95,13 @@ Here are some insights:
 
 > [Failed payments](https://stripe.com/docs/billing/subscriptions/overview#failed-payments):
 > The subscription’s status remains `active` as long as automatic payments succeed. If automatic payment fails, the subscription updates to `past_due` and Stripe attempts to recover payment based on your [retry rules](https://dashboard.stripe.com/settings/billing/automatic). If payment recovery fails, you can set the subscription status to `canceled`, `unpaid`, or leave it `past_due`.
+
+From [Payment Status](https://stripe.com/docs/billing/subscriptions/overview#payment-status):
+| PAYMENT OUTCOME | PAYMENTINTENT STATUS | INVOICE STATUS | SUBSCRIPTION STATUS |
+| --------------- | -------------------- | --------------- | -------------------- |
+|     Success     |     `succeeded`        |    `paid`        |     `active`    |
+| Fails because of a card error | `requires_payment_method` | `open` |  `incomplete`  |
+| Fails because of authentication |  `requires_action` |  `open` | `incomplete` |
 
 ## Questions
 

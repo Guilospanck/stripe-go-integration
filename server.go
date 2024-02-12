@@ -11,8 +11,17 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/stripe/stripe-go/v76"
+	"github.com/stripe/stripe-go/v76/subscription"
 	"github.com/stripe/stripe-go/v76/webhook"
 )
+
+type User struct {
+	Name                string `json:"name"`
+	Email               string `json:"email"`
+	Password            string `json:"password"`
+	SubscriptionStatus  string `json:"subscriptionStatus"`
+	ExpireDateTimestamp int64  `json:"expireDateTimestamp"`
+}
 
 func main() {
 	err := godotenv.Load(".env")
@@ -71,35 +80,87 @@ func webhookHandler(c echo.Context) error {
 	}
 
 	switch event.Type {
-	case "checkout.session.completed":
-		var session stripe.CheckoutSession
-		err := json.Unmarshal(event.Data.Raw, &session)
+	case "invoice.paid":
+		var invoice stripe.Invoice
+		err := json.Unmarshal(event.Data.Raw, &invoice)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error parsing webhook JSON: %v\n", err)
 			res.WriteHeader(http.StatusBadRequest)
 			return err
 		}
 
-		orderPaid := session.PaymentStatus == stripe.CheckoutSessionPaymentStatusPaid
-		if orderPaid {
-			// create user account
-			createCustomerAccount(session.CustomerDetails.Name, session.CustomerDetails.Email)
+		customerEmail := invoice.CustomerEmail
+		customerName := invoice.CustomerName
 
-			// send email
-			sendCustomerEmail(session.CustomerDetails.Email)
+		subs, err := subscription.Get(invoice.Subscription.ID, nil)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error getting subscription from subscription ID: %v\n", err)
+			res.WriteHeader(http.StatusBadRequest)
+			return err
 		}
+
+		subscriptionStatus := subs.Status // Possible values are `incomplete`, `incomplete_expired`, `trialing`, `active`, `past_due`, `canceled`, or `unpaid`.
+		expireDateTimestamp := subs.CurrentPeriodEnd * 1000
+
+		// checks if customer exists
+		user, userExists := customerAlreadyInTheDB(customerEmail)
+		if !userExists {
+			// create user account
+			user := createUserAccount(customerName, customerEmail, subscriptionStatus, expireDateTimestamp)
+			// send email with his credentials
+			sendUserEmail(user.Email, user.Password)
+		} else {
+			// update user subscription status and expire date
+			updateUserAccount(*user, subscriptionStatus, expireDateTimestamp)
+		}
+
 	}
 
 	res.WriteHeader(http.StatusOK)
 	return nil
 }
 
-func createCustomerAccount(name, email string) {
-	// save customer data to database
-	fmt.Println("Customer account created!")
+func updateUserAccount(user User, subscriptionStatus stripe.SubscriptionStatus, expireDateTimestamp int64) {
+	user.SubscriptionStatus = string(subscriptionStatus)
+	user.ExpireDateTimestamp = expireDateTimestamp
+
+	fmt.Println()
+	fmt.Printf("Updated user %+v account!", user)
+	fmt.Println()
 }
 
-func sendCustomerEmail(email string) {
-	// send email to customer with his temporary credentials
-	fmt.Println("Email sent to customer!")
+func customerAlreadyInTheDB(customerEmail string) (*User, bool) {
+	// checks if the customer is already an user
+	return nil, false
+}
+
+func createUserAccount(name string, email string, subscriptionStatus stripe.SubscriptionStatus, expireDateTimestamp int64) User {
+	password := _generateUserTemporaryPassword()
+
+	user := User{Email: email, Name: name, Password: password, SubscriptionStatus: string(subscriptionStatus), ExpireDateTimestamp: expireDateTimestamp}
+
+	// save customer data to database
+	fmt.Println()
+	fmt.Printf("User %+v account created!", user)
+	fmt.Println()
+
+	return user
+}
+
+func sendUserEmail(email, password string) {
+	// send email to user with his temporary credentials
+	fmt.Println()
+	fmt.Printf("Email sent to %s with his new credentials: %s!", email, password)
+	fmt.Println()
+}
+
+func _generateUserTemporaryPassword() string {
+	// generates temporary password
+	password := "apple-potato-mirror"
+
+	fmt.Println()
+	fmt.Printf("Generated %s\n", password)
+	fmt.Println()
+
+	return password
 }
