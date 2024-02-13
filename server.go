@@ -79,6 +79,13 @@ func webhookHandler(c echo.Context) error {
 		return err
 	}
 
+	// TODO: - check event when customer cancels its subscription (therefore changing the status to `canceled`) but then renews it (therefore re-changing the status to `active`)
+	// TODO: - check event when customer chooses to pause its subscription (therefore changing the status to `??`)
+	// TODO: 					Questions: if my renewal date was in one week and I decided to pause it now:
+	// TODO: 								a) Will I be able to continue using the application until the end of the current subscription?
+	// TODO: 								b) When I unpause it in 2 weeks, will I be immediately charged?
+	// INFO: Link to the subscriptions processes: https://dashboard.stripe.com/settings/billing/automatic
+	// INFO: right now, when all retries for a payment fail, the subscription status is changing to `unpaid` and invoice to `overdue`
 	switch event.Type {
 	case "invoice.paid":
 		var invoice stripe.Invoice
@@ -111,10 +118,23 @@ func webhookHandler(c echo.Context) error {
 			sendUserEmail(user.Email, user.Password)
 		} else {
 			// update user subscription status and expire date
-			updateUserAccount(*user, subscriptionStatus, expireDateTimestamp)
+			user.SubscriptionStatus = string(subscriptionStatus)
+			user.ExpireDateTimestamp = expireDateTimestamp
+			updateUserAccount(*user)
 		}
 
 	case "customer.subscription.deleted":
+		/*
+			From https://stripe.com/docs/billing/subscriptions/cancel#events
+				Stripe sends a customer.subscription.deleted event when a customer’s subscription is canceled immediately.
+				If the customer.subscription.deleted event’s request property isn’t null, that indicates the cancellation
+				was made by your request (as opposed to automatically based upon your subscription settings).
+
+				If you instead cancel a subscription at the end of the billing period (that is, by setting cancel_at_period_end to true),
+				a customer.subscription.updated event is immediately triggered.
+				That event reflects the change in the subscription’s cancel_at_period_end value.
+				When the subscription is actually canceled at the end of the period, a customer.subscription.deleted event then occurs.
+		*/
 		var customerSubscription stripe.Subscription
 		err := json.Unmarshal(event.Data.Raw, &customerSubscription)
 		if err != nil {
@@ -123,10 +143,22 @@ func webhookHandler(c echo.Context) error {
 			return err
 		}
 
-		// status := customerSubscription.Status
-		// userEmail := customerSubscription.Customer.Email
+		userEmail := customerSubscription.Customer.Email
+		status := customerSubscription.Status
 
-		// TODO: update status of user with email `userEmail` to `status`
+		// cancellationFeedback := customerSubscription.CancellationDetails.Feedback // possible values: "customer_service",	"low_quality",	"missing_features",	"other",	"switched_service",	"too_complex",	"too_expensive",	"unused"
+		// TODO: do something with the cancellationFeedback
+
+		user, err := getUserFromDB(userEmail)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error parsing webhook JSON: %v\n", err)
+			res.WriteHeader(http.StatusBadRequest)
+			return err
+		}
+
+		user.SubscriptionStatus = string(status)
+
+		updateUserAccount(user)
 	}
 
 	res.WriteHeader(http.StatusOK)
@@ -134,16 +166,27 @@ func webhookHandler(c echo.Context) error {
 
 }
 
-func updateUserAccount(user User, subscriptionStatus stripe.SubscriptionStatus, expireDateTimestamp int64) {
-	user.SubscriptionStatus = string(subscriptionStatus)
-	user.ExpireDateTimestamp = expireDateTimestamp
-
+func updateUserAccount(user User) {
 	fmt.Println()
 	fmt.Printf("Updated user %+v account!", user)
 	fmt.Println()
 }
 
+func getUserFromDB(email string) (User, error) {
+	user := User{
+		Email:               email,
+		Name:                "User from DB",
+		ExpireDateTimestamp: 1707820250079,
+		Password:            "",
+		SubscriptionStatus:  "Active",
+	}
+
+	return user, nil
+}
+
 func customerAlreadyInTheDB(customerEmail string) (*User, bool) {
+	// getUserFromDB(customerEmail)
+
 	// checks if the customer is already an user
 	return nil, false
 }
