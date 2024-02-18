@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"slices"
 
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
@@ -23,6 +24,23 @@ type User struct {
 	ExpireDateTimestamp int64  `json:"expireDateTimestamp"`
 }
 
+// From https://docs.stripe.com/ips#webhook-notifications
+var allowedStripeIPs = [...]string{
+	"3.18.12.63",
+	"3.130.192.231",
+	"13.235.14.237",
+	"13.235.122.149",
+	"18.211.135.69",
+	"35.154.171.200",
+	"52.15.183.38",
+	"54.88.130.119",
+	"54.88.130.237",
+	"54.187.174.169",
+	"54.187.205.235",
+	"54.187.216.72",
+	"::1",
+}
+
 func main() {
 	err := godotenv.Load(".env")
 	if err != nil {
@@ -35,6 +53,11 @@ func main() {
 
 	// Echo instance
 	e := echo.New()
+
+	// Gets the IP from caller when not using proxy
+	e.IPExtractor = echo.ExtractIPDirect()
+	// Gets the IP from caller when using X-Forwarded-For in the proxy
+	// e.IPExtractor = echo.ExtractIPFromXFFHeader()
 
 	// Middleware
 	e.Use(middleware.Logger())
@@ -54,6 +77,12 @@ func ping(c echo.Context) error {
 }
 
 func webhookHandler(c echo.Context) error {
+	ipFromStripeWebhook := c.RealIP()
+	if !slices.Contains[[]string](allowedStripeIPs[:], ipFromStripeWebhook) {
+		fmt.Println("You shall not pass")
+		return nil
+	}
+
 	req := c.Request()
 	res := c.Response()
 
