@@ -16,3 +16,5 @@ var AllowedStripeIPs = [...]string{
 	"54.187.216.72",
 	"::1",
 }
+
+const TwelveHoursInMilliseconds int64 = 3600 * 12 * 1000

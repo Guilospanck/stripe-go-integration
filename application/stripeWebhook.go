@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/Guilospanck/stripe-go-integration/repository"
+	"github.com/Guilospanck/stripe-go-integration/utils"
 	"github.com/labstack/echo/v4"
 	"github.com/stripe/stripe-go/v76"
 	"github.com/stripe/stripe-go/v76/subscription"
@@ -35,6 +36,8 @@ func CheckEventTypes(res *echo.Response, event stripe.Event) error {
 
 		subscriptionStatus := subs.Status // Possible values are `incomplete`, `incomplete_expired`, `trialing`, `active`, `past_due`, `canceled`, or `unpaid`.
 		expireDateTimestamp := subs.CurrentPeriodEnd * 1000
+		// Add 12h as a security. Sometimes the invoice takes some time to be processed even when there's nothing wrong with the payment methods.
+		expireDateTimestamp += utils.TwelveHoursInMilliseconds
 
 		// checks if customer exists
 		user, userExists := repository.CustomerAlreadyInTheDB(customerEmail)
