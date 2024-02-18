@@ -56,7 +56,7 @@ func main() {
 
 	// Gets the IP from caller when not using proxy
 	e.IPExtractor = echo.ExtractIPDirect()
-	// Gets the IP from caller when using X-Forwarded-For in the proxy
+	// Gets the IP from caller when using X-Forwarded-For in the proxy (nginx, for example)
 	// e.IPExtractor = echo.ExtractIPFromXFFHeader()
 
 	// Middleware
@@ -77,14 +77,22 @@ func ping(c echo.Context) error {
 }
 
 func webhookHandler(c echo.Context) error {
-	ipFromStripeWebhook := c.RealIP()
-	if !slices.Contains[[]string](allowedStripeIPs[:], ipFromStripeWebhook) {
-		fmt.Println("You shall not pass")
-		return nil
-	}
-
 	req := c.Request()
 	res := c.Response()
+	ipFromStripeWebhook := c.RealIP()
+
+	// Checks webhook coming from allowed IP
+	if !slices.Contains[[]string](allowedStripeIPs[:], ipFromStripeWebhook) {
+		fmt.Fprintln(os.Stderr, "You shall not pass")
+		err := echo.ErrBadRequest
+		err.Message = "IP not allowed"
+		return err
+	}
+
+	// Checks webhook signature.
+	// This makes sure that the POST request is actually coming from Stripe.
+	stripeWebhookSecret := os.Getenv("STRIPE_WEBHOOK_KEY")
+	signatureHeader := req.Header.Get("Stripe-Signature")
 
 	const MaxBodyBytes = int64(65536)
 	req.Body = http.MaxBytesReader(res.Writer, req.Body, MaxBodyBytes)
@@ -96,11 +104,6 @@ func webhookHandler(c echo.Context) error {
 		return err
 	}
 
-	// Checks webhook signature.
-	// This makes sure that the POST request is actually coming from Stripe.
-	stripeWebhookSecret := os.Getenv("STRIPE_WEBHOOK_KEY")
-	signatureHeader := req.Header.Get("Stripe-Signature")
-
 	event, err := webhook.ConstructEvent(body, signatureHeader, stripeWebhookSecret)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error verifying webhook signature: %v\n", err)
@@ -108,13 +111,16 @@ func webhookHandler(c echo.Context) error {
 		return err
 	}
 
-	// TODO: - check event when customer cancels its subscription (therefore changing the status to `canceled`) but then renews it (therefore re-changing the status to `active`)
-	// TODO: - check event when customer chooses to pause its subscription (therefore changing the status to `??`)
-	// TODO: 					Questions: if my renewal date was in one week and I decided to pause it now:
-	// TODO: 								a) Will I be able to continue using the application until the end of the current subscription?
-	// TODO: 								b) When I unpause it in 2 weeks, will I be immediately charged?
-	// INFO: Link to the subscriptions processes: https://dashboard.stripe.com/settings/billing/automatic
-	// INFO: right now, when all retries for a payment fail, the subscription status is changing to `unpaid` and invoice to `overdue`
+	// Use a goroutine so we can acknowledge events immediately
+	// See: https://docs.stripe.com/webhooks#acknowledge-events-immediately
+	go checkEventTypes(res, event)
+
+	res.WriteHeader(http.StatusOK)
+	return nil
+
+}
+
+func checkEventTypes(res *echo.Response, event stripe.Event) error {
 	switch event.Type {
 	case "invoice.paid":
 		var invoice stripe.Invoice
@@ -188,11 +194,12 @@ func webhookHandler(c echo.Context) error {
 		user.SubscriptionStatus = string(status)
 
 		updateUserAccount(user)
+
+	default:
+		fmt.Fprintf(os.Stderr, "Unhandled event type: %s\n", event.Type)
 	}
 
-	res.WriteHeader(http.StatusOK)
 	return nil
-
 }
 
 func updateUserAccount(user User) {

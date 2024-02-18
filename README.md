@@ -110,3 +110,33 @@ For example when something like "I wanna start my subscription now" and then the
 pays for it, the stripe webhook will try to contact our application.
 If the application is not online (or the webhook endpoint is not working), how will the customer
 get its data created correctly and sent to him via email?
+
+Stripe has a retry policiy to try a few times in a couple of hours, but you will have to basically do it via dashboard if you want something right away. See [this](https://docs.stripe.com/webhooks#retries)
+
+- check event when customer cancels its subscription (therefore changing the status to `canceled`) but then renews it - only the cancellation was to be done after end of period - (therefore re-changing the status to `active`)
+     this will trigger `customer.subscription.updated` (when cancelling to the end of period and when renewing it while still hasn't been cancelled yet)
+
+  - check event when customer chooses to pause its subscription (therefore changing the status to `?? - it will remain as active`)
+     this will trigger `customer.subscription.updated`, where `pause_collection`` will be:
+
+     ```json
+                "pause_collection": {
+                  "behavior": "void",
+                  "resumes_at": null
+                }
+     ```
+
+  what event does `resume` trigger?
+    customer.subscription.updated with "pause_collection": null
+
+       Questions: if my renewal date was in one week and I decided to pause it now:
+          a) Will I be able to continue using the application until the end of the current subscription?
+             Yes.
+ 
+          b) When I unpause it in 2 weeks, will I be immediately charged?
+             You will be charged by how much you've used.
+
+  - If a subscription was paused and then the next billing cycle happens, it will trigger an event `invoice.voided`, setting the status of the invoice to "status": "void".
+
+ INFO: Link to the subscriptions processes: <https://dashboard.stripe.com/settings/billing/automatic>
+ INFO: right now, when all retries for a payment fail, the subscription status is changing to `unpaid` and invoice to `overdue`
