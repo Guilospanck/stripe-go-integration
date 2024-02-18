@@ -103,40 +103,45 @@ From [Payment Status](https://stripe.com/docs/billing/subscriptions/overview#pay
 | Fails because of a card error | `requires_payment_method` | `open` |  `incomplete`  |
 | Fails because of authentication |  `requires_action` |  `open` | `incomplete` |
 
+
+Link to the subscriptions processes: <https://dashboard.stripe.com/settings/billing/automatic>.
+
 ## Questions
 
--> What happens when the webhook tries to contact the endpoint but is unsuccessful?
+- What happens when the webhook tries to contact the endpoint but is unsuccessful?
 For example when something like "I wanna start my subscription now" and then the customer
-pays for it, the stripe webhook will try to contact our application.
-If the application is not online (or the webhook endpoint is not working), how will the customer
-get its data created correctly and sent to him via email?
+pays for it, the stripe webhook will try to contact our application. If the application is not online (or the webhook endpoint is not working), how will the customer
+get its data created correctly and sent to him via email, for example?
 
-Stripe has a retry policiy to try a few times in a couple of hours, but you will have to basically do it via dashboard if you want something right away. See [this](https://docs.stripe.com/webhooks#retries)
+A: Stripe has a retry policiy to try a few times in a couple of hours, but you will have to basically do it via dashboard if you want something right away. See [this](https://docs.stripe.com/webhooks#retries).
 
-- check event when customer cancels its subscription (therefore changing the status to `canceled`) but then renews it - only the cancellation was to be done after end of period - (therefore re-changing the status to `active`)
-     this will trigger `customer.subscription.updated` (when cancelling to the end of period and when renewing it while still hasn't been cancelled yet)
+- What happens when customer cancels its subscription (therefore changing the status to `canceled`) but then resumes it - only if the cancellation period was to be done after end of period - (therefore re-changing the status to `active`)
 
-  - check event when customer chooses to pause its subscription (therefore changing the status to `?? - it will remain as active`)
-     this will trigger `customer.subscription.updated`, where `pause_collection`` will be:
+A: This will trigger a `customer.subscription.updated` event (when cancelling to the end of period and when renewing it while still hasn't been cancelled yet)
 
-     ```json
-                "pause_collection": {
-                  "behavior": "void",
-                  "resumes_at": null
-                }
-     ```
+- What happens when the customer chooses to pause its subscription (therefore changing the status to `?? - it will remain as active`)?
 
-  what event does `resume` trigger?
-    customer.subscription.updated with "pause_collection": null
+A: This will trigger `customer.subscription.updated`, where `pause_collection` will be:
 
-       Questions: if my renewal date was in one week and I decided to pause it now:
-          a) Will I be able to continue using the application until the end of the current subscription?
-             Yes.
- 
-          b) When I unpause it in 2 weeks, will I be immediately charged?
-             You will be charged by how much you've used.
+```json
+  "pause_collection": {
+      "behavior": "void",
+      "resumes_at": null
+  }
+```
 
-  - If a subscription was paused and then the next billing cycle happens, it will trigger an event `invoice.voided`, setting the status of the invoice to "status": "void".
+- What event does `resume` trigger?
 
- INFO: Link to the subscriptions processes: <https://dashboard.stripe.com/settings/billing/automatic>
- INFO: right now, when all retries for a payment fail, the subscription status is changing to `unpaid` and invoice to `overdue`
+A: `customer.subscription.updated` with `"pause_collection": null`
+
+- Questions: if my renewal date was in 1 week and I decided to pause it now:
+  
+    a) Will I be able to continue using the application until the end of the current subscription?
+      Yes.
+
+    b) When I unpause it in 2 weeks, will I be immediately charged?
+      You will be charged by how much you've used (this is called `prorate`).
+
+    c) What will happen if the next billing cycle happens and my account is still paused?
+      If a subscription was paused and then the next billing cycle happens, it will trigger an event `invoice.voided`, setting the status of the invoice to `"status": "void"`.
+
