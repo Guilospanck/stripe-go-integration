@@ -103,8 +103,9 @@ From [Payment Status](https://stripe.com/docs/billing/subscriptions/overview#pay
 | Fails because of a card error | `requires_payment_method` | `open` |  `incomplete`  |
 | Fails because of authentication |  `requires_action` |  `open` | `incomplete` |
 
+Link to the subscriptions configurations: <https://dashboard.stripe.com/settings/billing/automatic>.
 
-Link to the subscriptions processes: <https://dashboard.stripe.com/settings/billing/automatic>.
+**⚠️Be aware that some of the configurations are only valid for live mode, not test mode.⚠️**
 
 ## Questions
 
@@ -145,3 +146,20 @@ A: `customer.subscription.updated` with `"pause_collection": null`
     c) What will happen if the next billing cycle happens and my account is still paused?
       If a subscription was paused and then the next billing cycle happens, it will trigger an event `invoice.voided`, setting the status of the invoice to `"status": "void"`.
 
+### About payments that fail
+
+- What happens when the user payment does not execute correctly for some time and then the user changes the payment method to a valid one for the next cycle, for example?
+
+A: When the payment does not execute correctly, it will retry based on the [Smart Retries](https://dashboard.stripe.com/settings/billing/automatic) options. If, after all, it does not succeed, then the subscription status will change from `active` -> `past_due` -> `unpaid` and it won't retry again.
+
+Then, after the next billing cycle comes, a `draft` invoice will be generated, but it won't collect automatically because it was created by an `unpaid` subscription.
+
+There is a problem. If, let's say, in a billing cycle of 3 months and the application that is using Stripe only allows its use of the subscription has not expired, this is what is going to happen:
+
+- user paid the first 3 months: `jan, feb, mar` and then can use the external platform until the end of current billing cycle (end of march);
+- Stripe tries to pay for the next billing cycle on the beginning of april. The payment and all retries are unsuccessful, therefore the subscription status is `unpaid` - and expired - and the invoice is `overdue`;
+- next billing cycle then comes (`jul, aug, sep`) and user hasn't paid the previous one yet (__and also cannot use the external platform because the expiration date is already not valid__);
+- an invoice is created in `draft` state and the automatic collection is not activated because it was created by an `unpaid` subscription;
+- if the user goes to the `Customer portal` to pay the invoice, there will only be the invoice from `apr, may, jun`, which was `overdue`. But then, during that time, the user could not user some 3rd party application because the subscriptions was expired, but the user would have to pay for that unused time and, in order to use it for the current cycle (`jul, aug, sep`), the user has to pay yet another invoice.
+
+A way to fix this in a quick and effective way is, if all retries for a payment fail, choose to `Cancel` the subscription and mark the invoice as `uncollectible`. By doing this, there will be no problems regarding user _re-engaging_ with the subscription. If the user wants to use the 3rd party application again, they will have to create a brand new subscription.

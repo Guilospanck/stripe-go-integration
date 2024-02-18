@@ -33,7 +33,7 @@ func GetUserFromDB(email string) (User, error) {
 }
 
 func CustomerAlreadyInTheDB(customerEmail string) (*User, bool) {
-	// getUserFromDB(customerEmail)
+	// GetUserFromDB(customerEmail)
 
 	// checks if the customer is already an user
 	return nil, false

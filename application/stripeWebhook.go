@@ -28,7 +28,7 @@ func CheckEventTypes(res *echo.Response, event stripe.Event) error {
 
 		subs, err := subscription.Get(invoice.Subscription.ID, nil)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error getting subscription from subscription ID: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Error getting subscription from subscription ID [%s]: %v\n", invoice.Subscription.ID, err)
 			res.WriteHeader(http.StatusBadRequest)
 			return err
 		}
@@ -49,6 +49,29 @@ func CheckEventTypes(res *echo.Response, event stripe.Event) error {
 			user.ExpireDateTimestamp = expireDateTimestamp
 			repository.UpdateUserAccount(*user)
 		}
+
+	case "customer.subscription.updated":
+		var customerSubscription stripe.Subscription
+		err := json.Unmarshal(event.Data.Raw, &customerSubscription)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error parsing webhook JSON: %v\n", err)
+			res.WriteHeader(http.StatusBadRequest)
+			return err
+		}
+
+		userEmail := customerSubscription.Customer.Email
+		status := customerSubscription.Status
+
+		user, err := repository.GetUserFromDB(userEmail)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "User [%s] does not exist or err: %v\n", userEmail, err)
+			res.WriteHeader(http.StatusBadRequest)
+			return err
+		}
+
+		user.SubscriptionStatus = string(status)
+
+		repository.UpdateUserAccount(user)
 
 	case "customer.subscription.deleted":
 		/*
@@ -78,7 +101,7 @@ func CheckEventTypes(res *echo.Response, event stripe.Event) error {
 
 		user, err := repository.GetUserFromDB(userEmail)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error parsing webhook JSON: %v\n", err)
+			fmt.Fprintf(os.Stderr, "User [%s] does not exist or err: %v\n", userEmail, err)
 			res.WriteHeader(http.StatusBadRequest)
 			return err
 		}
