@@ -34,6 +34,7 @@ Follow these points:
 
 ```sh
 go run .
+# > air
 ```
 
 > Server will be running on port :4444
@@ -69,6 +70,17 @@ More testing data can be found [here](https://stripe.com/docs/testing).
 You don't have to set up breakpoints in your application or logs in order to, for example, check the incoming events and its structure.
 
 When you use the `stripe listen` command, it will print in your terminal the events that it is `post`ing to your webhook. If you click on the name of them, you will be redirected to the `Events` logs in the Stripe dashboard, where can see everything that was received and sent.
+
+## Walkthrough
+
+![alt text](img/subscription.png)
+<p align="center"><i>Subscription model</i></p>
+
+![alt text](img/payment_renewal.png)
+<p align="center"><i>Payment renewal model</i></p>
+
+![alt text](img/flowchart.png)
+<p align="center"><i>Flowchart</i></p>
 
 ## Misc
 
