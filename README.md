@@ -2,6 +2,8 @@
 
 This is a repository to showcase in a simple and effective manner how to create the integration of the payments platform Stripe with an application written in Go.
 
+👉🏻 Check the Medium article [Straightforward way to integrate Stripe using Go](https://medium.com/@guilospanck/straightforward-way-to-integrate-stripe-using-go-5706cfb6f1ca) for more info.
+
 ## Stripe CLI
 
 [Install Stripe CLI](https://stripe.com/docs/stripe-cli#install):
