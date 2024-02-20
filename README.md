@@ -86,8 +86,8 @@ When you use the `stripe listen` command, it will print in your terminal the eve
 ![alt text](img/subscription.png)
 <p align="center"><i>Subscription model</i></p>
 
-![alt text](img/payment_renewal.png)
-<p align="center"><i>Payment renewal model</i></p>
+![alt text](img/cancellation_flow.png)
+<p align="center"><i>Cancellation flow</i></p>
 
 ![alt text](img/flowchart.png)
 <p align="center"><i>Flowchart</i></p>
